@@ -1,0 +1,469 @@
+<?php
+
+// add this for instragram library
+$theme = wp_get_theme();
+define('THEME_VERSION', $theme->Version);
+function gd_common_admin_scripts(){
+  wp_enqueue_style( 'custom-css', get_bloginfo('stylesheet_directory') . '/settings/assets/css/admin-style.css', false, THEME_VERSION);
+  wp_enqueue_script( 'jquery-validate', get_bloginfo('stylesheet_directory') . '/settings/assets/js/jquery.validate.min.js', false, THEME_VERSION);
+  wp_enqueue_script( 'dropzone', 'https://cdn.jsdelivr.net/dropzone/4.3.0/dropzone.min.js', false, THEME_VERSION);
+  wp_enqueue_script( 'gr-common-admin-scripts', get_bloginfo('stylesheet_directory') . '/settings/assets/js/common.js', false, THEME_VERSION);
+  wp_localize_script( 'gr-common-admin-scripts', 'gr_common_admin', ['ajax_url' => admin_url(  'admin-ajax.php' )]  ); 
+  wp_enqueue_script( 'gd-section-builder', get_bloginfo('stylesheet_directory') . '/settings/assets/js/section-builder.js?v=13.35', false, THEME_VERSION);
+  wp_localize_script( 'gd-section-builder', 'gd_section_builder', ['ajax_url' => admin_url(  'admin-ajax.php' )]  ); 
+}
+
+add_action('admin_enqueue_scripts', 'gd_common_admin_scripts');
+
+include_once('settings/theme-settings.php');
+include_once('settings/section-builder/builder.php');
+include_once('settings/projects/project-settings.php');
+include_once('settings/stories/stories-settings.php');
+
+
+//Prevent editor form removing span tags   
+function override_mce_options($initArray) 
+{
+  $opts = '*[*]';
+  $initArray['valid_elements'] = $opts;
+  $initArray['extended_valid_elements'] = $opts;
+  return $initArray;
+ }
+add_filter('tiny_mce_before_init', 'override_mce_options');
+
+
+//Register the navigation menu
+register_nav_menus([
+    'gr_menu' 			=> 'Primary Navigation Menu For Verve',
+	'gr_secondary_menu' => 'Secondary Navigation Menu For Verve'
+
+]);
+
+//Rest API support to the menu
+function gr_get_menu() {
+	$menus 				= [];
+ 	$locations 			= get_nav_menu_locations();
+	$menu 				= wp_get_nav_menu_object($locations['gr_menu']);
+	$secondary_menu 	= wp_get_nav_menu_object($locations['gr_secondary_menu']);
+	//$menus['primary'] = wp_get_nav_menu_items($menu->term_id);
+	$menus['primary'] 	= get_gr_main_menu($menu->term_id);
+	$menus['secondary'] = wp_get_nav_menu_items($secondary_menu->term_id);
+	return $menus;
+}
+//get main menu
+function get_gr_main_menu($menu){
+    // wordpress does not group child menu items with parent menu items
+    $navbar_items = wp_get_nav_menu_items($menu);
+	//return $navbar_items;
+    $child_items = [];
+    // pull all child menu items into separate object
+    foreach ($navbar_items as $key => $item) if ($item->menu_item_parent) {
+        array_push($child_items, $item);
+        unset($navbar_items[$key]);
+    }
+	//return $child_items;
+    // push child items into their parent item in the original object
+    foreach ($navbar_items as $index => $item){
+        $navbar_items[$index]->child_items = [];
+		    $navbar_items[$index]->color = get_field('color',$item);
+        foreach ($child_items as $key => $child){
+            if ($child->menu_item_parent == $item->ID) {
+                if (!$navbar_items[$index]->child_items) $navbar_items[$index]->child_items = [];
+                array_push($navbar_items[$index]->child_items, $child);
+                unset($child_items[$key]);
+            }
+		}
+	}	
+    // return navbar object where child items are grouped with parents
+    return $navbar_items;
+}
+
+add_action( 'rest_api_init', function () {
+        register_rest_route( '/gd-api', '/menu', array(
+        'methods' => 'GET',
+        'callback' => 'gr_get_menu',
+    ) );
+} );
+
+//Rest API support theme settings
+function gr_get_settings() {
+    return [
+       'copyright' => get_option('copyright'),
+       'bg_work_color' => get_option('bg_work_color'),
+       'bg_about_color' => get_option('bg_about_color'),
+       'bg_service_color' => get_option('bg_service_color'),
+       'bg_news_color' => get_option('bg_news_color'),
+       'bg_contact_color' => get_option('bg_contact_color'),
+       'menu_default_bg_color' => get_option('menu_default_bg_color'),
+    ];
+}
+
+add_action( 'rest_api_init', function () {
+       register_rest_route( '/gd-api', '/options', array(
+       'methods' => 'GET',
+       'callback' => 'gr_get_settings',
+   ) );
+} );
+
+add_action( 'rest_api_init', function () {
+       register_rest_route( '/gd-api', '/options', array(
+       'methods' => 'GET',
+       'callback' => 'gr_get_settings',
+   ) );
+} );
+
+/*
+    Awards Data API
+    Added : 06.12.21
+*/
+
+add_action( 'rest_api_init', function () {
+    register_rest_route( '/gd-api', '/awards', array(
+    'methods' => 'GET',
+    'callback' => 'gd_awards_data',
+) );
+} );
+
+function gd_awards_data() {
+    $args = [
+        'post_type'     => 'our-awards',
+        'posts_per_page'   => 999,    
+        'orderby'   => 'meta_value', 
+        'order' => 'DESC',
+    ];
+$award = new WP_Query( $args );
+$awardData = [];
+if(count($award->posts)){
+    //print_r($award->posts);
+    foreach ($award->posts as $key => $awards) {
+        $id = $awards->ID;
+        $awards->award_category                 = get_field('award_category', $id);
+        $awards->project_name                   = get_field('project_name', $id);
+        $awards->background_color               = get_field('background_color', $id);
+		$awards->year               			= get_field('year', $id);
+    }
+}
+
+return $award->posts;
+}
+
+/*
+* Team data
+* Added on : 20.04.22
+*/
+add_action( 'rest_api_init', function () {
+    register_rest_route( '/gd-api', '/gd_team', array(
+    'methods' => 'GET',
+    'callback' => 'gr_get_team',
+) );
+} );
+
+function gr_get_team() {
+    $args = [
+        'post_type'     => 'gd_team',
+        'posts_per_page'   => 999,    
+        'orderby'   => 'meta_value', 
+        'order' => 'DESC',
+    ];
+$team = new WP_Query( $args );
+$teamData = [];
+if(count($team->posts)){
+    //print_r($team->posts);
+    foreach ($team->posts as $key => $teams) {
+        $id = $teams->ID;
+        $teams->designation                 = get_field('designation', $id);
+        $teams->namedesignation_text_colour = get_field('namedesignation_text_colour', $id);
+        $teams->email_id                    = get_field('email_id', $id);
+        $teams->linkedln_link               = get_field('linkedln_link', $id);
+        $teams->image                       = get_field('image', $id);
+        $teams->content                     = get_field('content', $id);
+        $teams->content_text_color          = get_field('content_text_color', $id);
+        $teams->content_background_color    = get_field('content_background_color', $id);
+        $teams->favourite_project           = get_field('favourite_project', $id);
+    }
+}
+
+return $team->posts;
+}
+
+/*
+* team data
+* Added on : 20.04.22
+*/
+
+
+/*
+* Replace the image source
+*/
+function replace_img_src($img_tag) {
+	//print_r($img_tag);
+    $doc = new DOMDocument();
+    @$doc->loadHTML($img_tag, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+	//@$doc->loadHTML(mb_convert_encoding($img_tag, 'HTML-ENTITIES', 'UTF-8'));
+    $tags = $doc->getElementsByTagName('img');
+	$span = $doc->getElementsByTagName('span');
+	$fig   = $doc->getElementsByTagName('figure');
+	
+	
+
+    $finder = new DomXPath($doc);
+    $classname="delayed-data-fixedimageurl";
+    $divTags = $finder->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' $classname ')]");
+
+    if(count($tags) > 0){
+      foreach ($tags as $tag) {
+        $old_src = $tag->getAttribute('data-src');
+        $tag->removeAttribute('data-src');
+        $new_src_url = get_stylesheet_directory_uri().'/settings/assets/img/content-images/'.$old_src;
+        $tag->setAttribute('src', $new_src_url);
+      }
+    }
+	if(count($span) > 0){
+        foreach ($span as $spans) {
+            if($spans->hasAttribute('data-src')){
+                $old_src = $spans->getAttribute('data-src');
+                //$spans->removeAttribute('data-src');
+                $new_src_url = get_stylesheet_directory_uri().'/settings/assets/img/content-images/'.$old_src;
+                $spans->setAttribute('data-src', $new_src_url);
+            }
+        }
+    }
+    if(count($divTags) > 0){
+      foreach ($divTags as $tag) {
+        $old_src = $tag->getAttribute('data-fixedimageurl');
+        $new_src_url = get_stylesheet_directory_uri().'/settings/assets/img/content-images/'.$old_src;
+        $tag->setAttribute('data-fixedimageurl', $new_src_url);
+      }
+    }
+    
+    if(count($fig) > 0){
+      foreach ($fig as $tag) {
+        if(!count($tag->getElementsByTagName('img'))){
+            //$tag->parentNode->parentNode->removeChild($tag->parentNode);
+        }
+      }
+    }
+
+    return $doc->saveHTML();
+}
+
+/*
+* Journal Instragram data
+* Added on : 06.07.23
+*/
+add_action( 'rest_api_init', function () {
+    register_rest_route( '/gd-api', '/journals-fetch/', array(
+    'methods' => 'GET',
+    'callback' => 'fetchMedia',
+) );
+} );
+// use EspressoDev\InstagramBasicDisplay\InstagramBasicDisplay;
+// latest one for 1 hour
+use EspressoDev\InstagramBasicDisplay\InstagramBasicDisplay;
+
+// Initialize session (if not already started)
+session_start();
+
+function isAccessTokenExpired() {
+   
+    if (!isset($_SESSION['token_issued_at'])) {
+        return true; 
+    }
+
+  
+    $validityDuration = 3600; 
+
+    
+    $currentTime = time();
+
+    
+    $expirationTime = $_SESSION['token_issued_at'] + $validityDuration;
+
+    
+    if ($currentTime >= $expirationTime) {
+        return true; 
+    } else {
+        return false; 
+    }
+}
+
+
+function fetchMedia() {
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, POST');
+    header("Access-Control-Allow-Headers: X-Requested-With");
+
+    try {
+        // Check if access token is available in session
+        if (!isset($_SESSION['access_token']) || isAccessTokenExpired()) {
+            // Redirect user to Instagram's authorization URL to start/restart the authorization flow
+            redirectToInstagramAuthorization();
+        }
+
+        // Retrieve access token from session
+        $accessToken = $_SESSION['access_token'];
+
+        // Initialize InstagramBasicDisplay with the retrieved access token
+        $instagram = new InstagramBasicDisplay($accessToken);
+
+        // Proceed with fetching media
+        $media1 = $instagram->getUserMedia('me', $limit = 2);
+        $pg = isset($_POST['pg']) ? $_POST['pg'] : 1;
+
+        if ($pg > 1) {
+            for ($i = 2; $i <= $pg; $i++) {
+                ${'media'.$i} = $instagram->pagination(${'media'.($i - 1)});
+            }
+        }
+
+        $fMedia = ${'media'.$pg};
+        $op = mediaDataFormat($fMedia);
+
+        // Return JSON response
+        echo json_encode($op, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+        exit;
+
+    } catch (Exception $e) {
+        // Handle exceptions, e.g., log the error
+        error_log('Error fetching Instagram media: ' . $e->getMessage());
+        // Respond with an error message
+        echo json_encode(['error' => 'Failed to fetch media. Please try again later.']);
+        exit;
+    }
+}
+
+
+
+// Function to redirect user to Instagram's authorization URL for initial authorization or token refresh
+function redirectToInstagramAuthorization() {
+    // Replace 'http://localhost/your_callback_url.php' with your actual callback URL
+    $callbackUrl = 'https://sds174.github.io/';
+    $clientid = '1632831760906143';
+    // Construct authorization URL
+    $authUrl = 'https://api.instagram.com/oauth/authorize'
+        . '?client_id=' . urlencode($clientid)
+        . '&redirect_uri=' . urlencode($callbackUrl)
+        . '&scope=user_profile,user_media'
+        . '&response_type=code';
+
+    // Redirect user to Instagram's authorization URL
+    header('Location: ' . $authUrl);
+    exit;
+}
+
+
+// latest one for 1 hour
+// function fetchMedia(){
+//  header('Access-Control-Allow-Origin: *');
+//  header('Access-Control-Allow-Methods: GET, POST');
+//  header("Access-Control-Allow-Headers: X-Requested-With");
+//  try{
+//      $instagram = new InstagramBasicDisplay('IGQWRPY09uYzF0cTVLOTJ1aHo4UXdvRWlZAQWJfZAl9RaW1Bc251dXZAjMDNtWlhUTWxTVWtLVmx6dXB1SUplcWNuZAF8tXzZALVVJTNW9jMU80YUdteHhVWHZAtQm1YX0djODNQZAkpUMkFFWWVGc3JTcHA5YVpaR01TbncZD');
+//        $media1 = $instagram->getUserMedia('me', $limit = 2 );
+//        $pg = isset($_POST['pg']) ? $_POST['pg'] : 1;
+//        if($pg > 1){
+//          for($i = 2; $i <= $pg; $i++){
+//              ${'media'.$i} = $instagram->pagination(${'media'.($i - 1)});
+//          }
+//        }
+       
+       
+//        $fMedia = ${'media'.$pg};
+//        $op = mediaDataFormat($fMedia);
+       
+//        echo json_encode($op, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);exit;
+//  }catch(Exception $e){
+//    print $e->getMessage();
+//  }
+// }
+// testing function
+
+// use EspressoDev\InstagramBasicDisplay\InstagramBasicDisplay;
+// function fetchMedia(){
+//     header('Access-Control-Allow-Origin: *');
+//     header('Access-Control-Allow-Methods: GET, POST');
+//     header("Access-Control-Allow-Headers: X-Requested-With");
+//     try{
+//         $instagram = new InstagramBasicDisplay('IGQWRPQV81NV9CdW9tZAVVsWmVpMTRrbzVUMGtScGlDVWp2ZAHNZARDZAILU5kWkRqcGEtblh3QUZApbm9ja0I2TWVzVFdIYmZAYaDV3amZA0MjlpVDBFWDctUndpRFVhdmRERE9wZA2RseElHTUdhQk0xc1duTFF0MWNScVp5eUZANUUE4bTk1ZAwZDZD');
+//           $media1 = $instagram->getUserMedia('me', $limit = 2 );
+//           $pg = isset($_POST['pg']) ? $_POST['pg'] : 1;
+//           if($pg > 1){
+//             for($i = 2; $i <= $pg; $i++){
+//                 ${'media'.$i} = $instagram->pagination(${'media'.($i - 1)});
+//             }
+//           }
+          
+          
+//           $fMedia = ${'media'.$pg};
+//           $op = mediaDataFormat($fMedia);
+         
+//           echo json_encode($op, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);exit;
+//     }catch(Exception $e){
+//       print $e->getMessage();
+//     }
+//    }
+// testing function
+
+function mediaDataFormat($media){
+ $data = $op = [];
+ if(isset($media->data)){
+     if(count($media->data)){
+       foreach($media->data as $key => $media_item){
+           $caption = $media_item->caption;
+           $data[] = [
+               'media_type' => $media_item->media_type,
+               'media_url' => $media_item->media_url,
+               'caption' => ($caption),
+               'link' => $media_item->permalink,
+               'date'  => date('d/m/Y',strtotime($media_item->timestamp)),
+           ];
+       }
+   }
+
+ }
+ return ['data' => $data, 'next_pg' => $media->paging->next ?? NULL];
+}
+
+
+/*
+* Remove the default post
+*/
+// ************* Remove default Posts type since no blog *************
+
+// Remove side menu
+add_action( 'admin_menu', 'remove_default_post_type' );
+
+function remove_default_post_type() {
+    remove_menu_page( 'edit.php' );
+}
+
+// Remove +New post in top Admin Menu Bar
+add_action( 'admin_bar_menu', 'remove_default_post_type_menu_bar', 999 );
+
+function remove_default_post_type_menu_bar( $wp_admin_bar ) {
+    $wp_admin_bar->remove_node( 'new-post' );
+}
+
+// Remove Quick Draft Dashboard Widget
+add_action( 'wp_dashboard_setup', 'remove_draft_widget', 999 );
+
+function remove_draft_widget(){
+    remove_meta_box( 'dashboard_quick_press', 'dashboard', 'side' );
+}
+
+// End remove post type
+function add_cors_http_header(){
+    header("Access-Control-Allow-Origin: *");
+}
+add_action('init','add_cors_http_header');
+
+add_filter( 'allowed_http_origin', '__return_true' ); 
+
+// extra code for testing 
+// Define a custom shortcode function
+function custom_shortcode_function( $atts ) {
+    // Shortcode logic goes here
+    return "This is a custom shortcode output.";
+}
+add_shortcode( 'custom_shortcode', 'custom_shortcode_function' );
+// extra code for testing
