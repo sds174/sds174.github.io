@@ -338,7 +338,7 @@ function fetchMedia() {
 function redirectToInstagramAuthorization() {
     // Replace 'http://localhost/your_callback_url.php' with your actual callback URL
     $callbackUrl = 'https://sds174.github.io/';
-    $clientid = '1632831760906143';
+    $clientid = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
     // Construct authorization URL
     $authUrl = 'https://api.instagram.com/oauth/authorize'
         . '?client_id=' . urlencode($clientid)
@@ -352,57 +352,7 @@ function redirectToInstagramAuthorization() {
 }
 
 
-// latest one for 1 hour
-// function fetchMedia(){
-//  header('Access-Control-Allow-Origin: *');
-//  header('Access-Control-Allow-Methods: GET, POST');
-//  header("Access-Control-Allow-Headers: X-Requested-With");
-//  try{
-//      $instagram = new InstagramBasicDisplay('IGQWRPY09uYzF0cTVLOTJ1aHo4UXdvRWlZAQWJfZAl9RaW1Bc251dXZAjMDNtWlhUTWxTVWtLVmx6dXB1SUplcWNuZAF8tXzZALVVJTNW9jMU80YUdteHhVWHZAtQm1YX0djODNQZAkpUMkFFWWVGc3JTcHA5YVpaR01TbncZD');
-//        $media1 = $instagram->getUserMedia('me', $limit = 2 );
-//        $pg = isset($_POST['pg']) ? $_POST['pg'] : 1;
-//        if($pg > 1){
-//          for($i = 2; $i <= $pg; $i++){
-//              ${'media'.$i} = $instagram->pagination(${'media'.($i - 1)});
-//          }
-//        }
-       
-       
-//        $fMedia = ${'media'.$pg};
-//        $op = mediaDataFormat($fMedia);
-       
-//        echo json_encode($op, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);exit;
-//  }catch(Exception $e){
-//    print $e->getMessage();
-//  }
-// }
-// testing function
 
-// use EspressoDev\InstagramBasicDisplay\InstagramBasicDisplay;
-// function fetchMedia(){
-//     header('Access-Control-Allow-Origin: *');
-//     header('Access-Control-Allow-Methods: GET, POST');
-//     header("Access-Control-Allow-Headers: X-Requested-With");
-//     try{
-//         $instagram = new InstagramBasicDisplay('IGQWRPQV81NV9CdW9tZAVVsWmVpMTRrbzVUMGtScGlDVWp2ZAHNZARDZAILU5kWkRqcGEtblh3QUZApbm9ja0I2TWVzVFdIYmZAYaDV3amZA0MjlpVDBFWDctUndpRFVhdmRERE9wZA2RseElHTUdhQk0xc1duTFF0MWNScVp5eUZANUUE4bTk1ZAwZDZD');
-//           $media1 = $instagram->getUserMedia('me', $limit = 2 );
-//           $pg = isset($_POST['pg']) ? $_POST['pg'] : 1;
-//           if($pg > 1){
-//             for($i = 2; $i <= $pg; $i++){
-//                 ${'media'.$i} = $instagram->pagination(${'media'.($i - 1)});
-//             }
-//           }
-          
-          
-//           $fMedia = ${'media'.$pg};
-//           $op = mediaDataFormat($fMedia);
-         
-//           echo json_encode($op, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);exit;
-//     }catch(Exception $e){
-//       print $e->getMessage();
-//     }
-//    }
-// testing function
 
 function mediaDataFormat($media){
  $data = $op = [];
