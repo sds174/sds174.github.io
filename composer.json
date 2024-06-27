@@ -1,0 +1,10 @@
+{
+    "require": {
+    	"guzzlehttp/guzzle": "^7.2",
+        "raiym/instagram-php-scraper": "^0.10.0",
+        "mailchimp/marketing": "*"
+    },
+    "require-dev": {
+        "espresso-dev/instagram-basic-display-php": "^1.1"
+    }
+}
