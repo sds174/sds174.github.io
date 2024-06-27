@@ -442,6 +442,147 @@ add_shortcode( 'custom_shortcode', 'custom_shortcode_function' );
 //    print $e->getMessage();
 //  }
 // } 
+**************latest code snippet******************
+add_action( 'rest_api_init', function () {
+    register_rest_route( '/gd-api', '/journals-fetch/', array(
+        'methods' => 'GET',
+        'callback' => 'fetchMedia',
+    ) );
+});
+
+use EspressoDev\InstagramBasicDisplay\InstagramBasicDisplay;
+
+// Initialize session (if not already started)
+session_start();
+
+// Function to check if access token is expired
+function isAccessTokenExpired() {
+    if (!isset($_SESSION['token_issued_at'])) {
+        return true; 
+    }
+    $validityDuration = 3600; // 1 hour validity
+    $currentTime = time();
+    $expirationTime = $_SESSION['token_issued_at'] + $validityDuration;
+    return $currentTime >= $expirationTime;
+}
+
+// Function to handle redirecting to Instagram's authorization URL
+function redirectToInstagramAuthorization() {
+    // Replace with your Instagram credentials
+    $clientId = 'xxxxxxxxxxxxxxxxxxxxxxx';
+    $redirectUri = 'https://sds174.github.io/'; // Your actual callback URL
+    $authUrl = 'https://api.instagram.com/oauth/authorize'
+        . '?client_id=' . urlencode($clientId)
+        . '&redirect_uri=' . urlencode($redirectUri)
+        . '&scope=user_profile,user_media'
+        . '&response_type=code';
+    header('Location: ' . $authUrl);
+    exit; 
+}
+
+// Function to exchange authorization code for access token
+function exchangeCodeForAccessToken($code) {
+    // Replace with your Instagram credentials
+    $clientId = 'xxxxxxxxxxxxxxxxxxxxx';
+    $clientSecret = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+    $redirectUri = 'https://sds174.github.io/'; // Your actual callback URL
+    $tokenUrl = 'https://api.instagram.com/oauth/access_token';
+
+    // Prepare POST data
+    $postData = array(
+        'client_id' => $clientId,
+        'client_secret' => $clientSecret,
+        'grant_type' => 'authorization_code',
+        'redirect_uri' => $redirectUri,
+        'code' => $code,
+    );
+
+    // Initialize cURL session
+    $ch = curl_init($tokenUrl);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+    // Execute cURL session and fetch response
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    // Decode JSON response
+    $responseData = json_decode($response, true);
+
+    // Check if access token is present in response
+    if (isset($responseData['access_token'])) {
+        $_SESSION['access_token'] = $responseData['access_token'];
+        $_SESSION['token_issued_at'] = time(); // Store timestamp when token was issued
+        return true;
+    } else {
+        return false;
+    }
+}
+
+// Function to fetch media from Instagram
+function fetchMedia() {
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, POST');
+    header("Access-Control-Allow-Headers: X-Requested-With");
+
+    try {
+        // Check if access token is available in session and not expired
+        if (!isset($_SESSION['access_token']) || isAccessTokenExpired()) {
+            // Redirect user to Instagram's authorization URL
+            redirectToInstagramAuthorization();
+        }
+
+        // Retrieve access token from session
+        $accessToken = $_SESSION['access_token'];
+
+        // Initialize InstagramBasicDisplay with the retrieved access token
+        $instagram = new InstagramBasicDisplay($accessToken);
+
+        // Proceed with fetching media
+        $media = $instagram->getUserMedia('me', $limit = 2); // Example: Fetch 2 media items
+        $pg = isset($_POST['pg']) ? $_POST['pg'] : 1;
+
+        if ($pg > 1) {
+            for ($i = 2; $i <= $pg; $i++) {
+                ${'media'.$i} = $instagram->pagination(${'media'.($i - 1)});
+            }
+        }
+
+        // Format media data
+        $formattedMedia = mediaDataFormat($media);
+
+        // Return JSON response
+        echo json_encode($formattedMedia, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+        exit;
+
+    } catch (Exception $e) {
+        // Handle exceptions, e.g., log the error
+        error_log('Error fetching Instagram media: ' . $e->getMessage());
+        // Respond with an error message
+        echo json_encode(['error' => 'Failed to fetch media. Please try again later.']);
+        exit;
+    }
+}
+
+// Function to format media data
+function mediaDataFormat($media) {
+    $data = [];
+    if (isset($media->data) && count($media->data) > 0) {
+        foreach ($media->data as $media_item) {
+            $caption = isset($media_item->caption) ? $media_item->caption : '';
+            $data[] = [
+                'media_type' => $media_item->media_type,
+                'media_url' => $media_item->media_url,
+                'caption' => $caption,
+                'link' => $media_item->permalink,
+                'date' => date('d/m/Y', strtotime($media_item->timestamp)),
+            ];
+        }
+    }
+    return ['data' => $data, 'next_pg' => isset($media->paging->next) ? $media->paging->next : null];
+}
+**************latest code snippet******************
 *********************************************************
 
 <?php
